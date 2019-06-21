@@ -5,7 +5,7 @@ module.exports=function(app){
     
     //GET
     app.get('/notes',controller.getNotes);
-    app.get('/notes/:title',controller.getNotesByTitle);
+    app.get('/notes/:id',controller.getNotesById);
     
     //POST
     app.post('/notes/',controller.addNote);

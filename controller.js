@@ -4,41 +4,27 @@ const response = require('./response');
 const conn = require('./connect.js');
 
 exports.getNotes = function (req, res) {
-    let page=req.query.page;
-    let limit=req.query.limit;
-    let title="%"+req.query.title+"%" ;
-    if(title=="%undefined%"){
-        title="%%";
+    let queryParams = {
+        page: parseInt(req.query.page) || 1,
+        search: req.query.search || "",
+        sort: req.query.sort || "DESC",
+        limit: parseInt(req.query.limit) || 10,
     }
-    let sort= req.query.sort;
-    
-    console.log("page : "+page+" title : "+title);
-    let parameter=page*10;
-    if(page || limit){
-        
-        conn.query(
-            `select title,note,category.name 'category' from notes  inner join category  on category.id = notes.category where title like ? order by time asc limit ?,? ;`,[title,parameter-10,parameter],
-            function (error, rows, field) {
-                if (error) {
-                    throw error
-                } else {
-                    if (rows.length == 0) {
-                        return res.send({
-                            message: "no record found"
-                        })
-                    } else {
-                        return res.send({
-                            data: rows,
-                        })
-                    }
-                }
-            }
-        )
-    }
-    else{
+    let totalData;
+    let totalPage;
+    let offset = (queryParams.page - 1) * queryParams.limit;
+
     conn.query(
-        `select title, note, c.name 'category'  from notes n inner join category c on c.id = n.category;`,
+        `select count(*) 'total' from notes inner join category  on category.id = notes.category where title like '%${queryParams.search}%'  `,
         function (error, rows, field) {
+            totalData = rows[0].total
+            totalPage = Math.ceil(Number(totalData) / queryParams.limit)
+        }
+    )
+    conn.query(
+        `select title,note,category.name 'category', DATE_FORMAT(time, '%m/%d/%Y %H:%i:%s') as 'date time' from notes inner join category  on category.id = notes.category where title like '%${queryParams.search}%' order by time ${queryParams.sort} limit ${queryParams.limit} offset ${offset} ;`,
+        function (error, rows, field) {
+
             if (error) {
                 throw error
             } else {
@@ -47,21 +33,19 @@ exports.getNotes = function (req, res) {
                         message: "no record found"
                     })
                 } else {
-                    return res.send({
-                        data: rows,
-                    })
+                    response.pagination(totalData, queryParams.page, totalPage, queryParams.limit, rows, res);
                 }
             }
         }
-    )}
+    )
 }
 
 
-exports.getNotesByTitle = function (req, res) {
-    let title = "%" + req.params.title + "%";
+exports.getNotesById = function (req, res) {
+    let id = req.params.id;
 
     conn.query(
-        `select title,note,category.name 'category' from notes  inner join category  on category.id = notes.category where notes.title like ?;`, [title],
+        `select title,note,category.name 'category' from notes  inner join category  on category.id = notes.category where notes.id=?;`, [id],
         function (error, rows, field) {
             if (error) {
                 throw error
