@@ -17,6 +17,6 @@ Backend for Notes app
 ## Installation
 
 * `git clone https://github.com/alavanta/simple-notes-app-api.git
-* `cd simple-notes-app-api
+* `cd restful-note-app-api-
 * `npm install`
 * `npm start`
