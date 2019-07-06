@@ -10,14 +10,16 @@ exports.ok=function(values,res){
 
 }
 
-exports.pagination=function(totalData, page, totalPage,limit,values,res){
+exports.pagination=function(totalData, page, totalPage,limit,values,res,search,category){
     const data={
         status:200,
         data:values,
         totalData:totalData,
         page:page,
         totalPage:totalPage,
-        limit:limit
+        limit:limit,
+        search:search,
+        selectedCategory:category
     };
     res.json(data);
     res.end();

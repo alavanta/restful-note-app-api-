@@ -4,36 +4,35 @@ const response = require('./response');
 const conn = require('./connect.js');
 
 exports.getNotes = function (req, res) {
-    let queryParams = {
+    let params = {
         page: parseInt(req.query.page) || 1,
         search: req.query.search || "",
         sort: req.query.sort || "DESC",
         limit: parseInt(req.query.limit) || 10,
+        category:req.query.category || ''
     }
+    let conState = params.category=="" ? "OR" : "AND";
     let totalData;
     let totalPage;
-    let offset = (queryParams.page - 1) * queryParams.limit;
+    let offset = (params.page - 1) * params.limit;
 
     conn.query(
-        `select count(*) 'total' from notes inner join category  on category.id = notes.category where title like '%${queryParams.search}%'  `,
+        `select count(*) 'total' from notes inner join category  on category.id = notes.category where title like '%${params.search}%' ${conState} category.name='${params.category}'  `,
         function (error, rows, field) {
             totalData = rows[0].total
-            totalPage = Math.ceil(Number(totalData) / queryParams.limit)
+            totalPage = Math.ceil(Number(totalData) / params.limit)
         }
     )
     conn.query(
-        `select title,note,category.name 'category', DATE_FORMAT(time, '%m/%d/%Y %H:%i:%s') as 'date time' from notes inner join category  on category.id = notes.category where title like '%${queryParams.search}%' order by time ${queryParams.sort} limit ${queryParams.limit} offset ${offset} ;`,
+        `select title,note,category.name 'category', DATE_FORMAT(time, '%d/%m/%Y %h:%i:%s') as 'datetime',category.id as 'idCategory',notes.id as 'noteId' from notes inner join category  on category.id = notes.category where title like '%${params.search}%'  ${conState} category.name='${params.category}' order by time ${params.sort} limit ${params.limit} offset ${offset} ;`,
         function (error, rows, field) {
-
             if (error) {
                 throw error
             } else {
                 if (rows.length == 0) {
-                    return res.send({
-                        message: "no record found"
-                    })
+                    response.pagination(totalData, params.page, totalPage, params.limit, rows, res,params.search,params.category);
                 } else {
-                    response.pagination(totalData, queryParams.page, totalPage, queryParams.limit, rows, res);
+                    response.pagination(totalData, params.page, totalPage, params.limit, rows, res,params.search,params.category);
                 }
             }
         }
@@ -45,7 +44,7 @@ exports.getNotesById = function (req, res) {
     let id = req.params.id;
 
     conn.query(
-        `select title,note,category.name 'category' from notes  inner join category  on category.id = notes.category where notes.id=?;`, [id],
+        `select title,note,category.name 'category',DATE_FORMAT(time, '%m/%d/%Y %H:%i:%s') as 'date time' from notes  inner join category  on category.id = notes.category where notes.id=? order by time desc;`, [id],
         function (error, rows, field) {
             if (error) {
                 throw error
@@ -75,11 +74,26 @@ exports.addNote = function (req, res) {
             if (error) {
                 throw error
             } else {
-                return res.send({
-                    error: false,
-                    data: rows,
-                    message: 'data created successfully!'
+                conn.query(`select title,note,category.name 'category', DATE_FORMAT(time, '%d/%m/%Y %h:%i:%s') as 'datetime',category.id as 'idCategory',notes.id as 'noteId' from notes inner join category  on category.id = notes.category order by time DESC limit 1`
+                ,function(error,rows,field) {
+                    if(error){
+                        console.log(error)
+                    }else{
+                        return res.send({
+                            data:rows
+                        })
+                    }
                 })
+                // return res.send({
+                //     data:{
+                //         title:title,
+                //         note:note,
+                //         category:category
+                //     },
+                //     error: false,
+                //     rows: rows,
+                //     message: 'data created successfully!'
+                // })
             }
         }
     )
@@ -97,18 +111,28 @@ exports.patchNote = function (req, res) {
             if (error) {
                 throw error
             } else {
-                return res.send({
-                    error: false,
-                    data: rows,
-                    message: 'data updated successfully!'
-                })
+            conn.query(`select title,note,category.name 'category', DATE_FORMAT(time, '%d/%m/%Y %h:%i:%s') as 'datetime',category.id as 'idCategory',notes.id as 'noteId' from notes inner join category  on category.id = notes.category WHERE notes.id=${id} order by time DESC limit 1`,
+             function (error, rows, field) {
+                if (error) {
+                    console.log(error)
+                } else {
+                    return res.send({
+                        data: rows
+                    })
+                }
+            })
+                // return res.send({
+                //     error: false,
+                //     data: rows,
+                //     message: 'data updated successfully!'
+                // })
             }
         }
     )
 }
 
 exports.deleteNote = function (req, res) {
-    let id = req.params.id;
+    let id = parseInt(req.params.id);
 
     conn.query(
         `DELETE FROM notes WHERE id=?;`, [id],
@@ -117,9 +141,12 @@ exports.deleteNote = function (req, res) {
                 throw error
             } else {
                 return res.send({
+                    data:{
+                        noteId:id
+                    },
                     error: false,
-                    data: rows,
-                    message: 'data deleted!'
+                    rows: rows,
+                    message: 'data deleted successfully!'
                 })
             }
         }
@@ -128,16 +155,23 @@ exports.deleteNote = function (req, res) {
 
 exports.addCategory = function (req, res) {
     let name = req.body.name;
+    let imageURL = req.body.image
 
     conn.query(
-        `INSERT INTO category SET name=?;`, [name],
+        `INSERT INTO category SET name=?,image=?;`, [name,imageURL],
         function (error, rows, field) {
             if (error) {
                 throw error
             } else {
 
                 return res.send({
-                    message: "data created!"
+                    data:{
+                        id:rows.insertId,
+                        name:name,
+                        imageURL:imageURL
+                    },
+                    rows:rows,
+                    message: "data created successfully!"
                 })
             }
         }
@@ -156,7 +190,7 @@ exports.patchCategory = function (req, res) {
                 throw error
             } else {
                 return res.send({
-                    message: "data updated!"
+                    message: "data updated successfully!"
                 })
             }
         }
@@ -164,7 +198,7 @@ exports.patchCategory = function (req, res) {
 }
 
 exports.deleteCategory = function (req, res) {
-    let id = req.params.id;
+    let id = parseInt(req.params.id);
 
     conn.query(
         `DELETE FROM category WHERE id=?;`, [id],
@@ -173,7 +207,24 @@ exports.deleteCategory = function (req, res) {
                 throw error
             } else {
                 return res.send({
-                    message: "data deleted!"
+                    id:id,
+                    data:rows,
+                    message: "data deleted successfully!"
+                })
+            }
+        }
+    )
+}
+
+exports.getCategory=function(req,res){
+    conn.query(
+        `SELECT * FROM category ;`,
+        function (error, rows, field) {
+            if (error) {
+                throw error
+            } else {
+                return res.send({
+                    data:rows
                 })
             }
         }
